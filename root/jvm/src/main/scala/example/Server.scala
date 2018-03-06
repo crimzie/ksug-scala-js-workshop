@@ -9,57 +9,50 @@ import monix.execution.Scheduler.Implicits.global
 import org.http4s.{HttpService, MediaType, Response, StaticFile}
 import org.http4s.dsl.Http4sDsl
 import org.http4s.server.blaze.BlazeBuilder
-import upickle.Js
+import upickle.{default, Js}
 import upickle.default._
+
+object AutowireServer extends autowire.Server[Js.Value, Reader, Writer] {
+  override def read[Result](p: Js.Value)
+    (implicit r: default.Reader[Result]): Result = readJs[Result](p)
+
+  override def write[Result](r: Result)
+    (implicit w: default.Writer[Result]): Js.Value = writeJs(r)
+}
+
+object Controller extends Api {
+  override def list(path: String): String =
+    path.replace("/", "\\")
+}
 
 object Template {
 
   import scalatags.Text.all._
   import scalatags.Text.tags2.title
 
-  val txt: String = "<!DOCTYPE html" +
-    html(
-      head(
-        title("Karazin Scala Users' Group"),
-        meta(httpEquiv := "Content-Type", content := "text/html; charset=UTF-8"),
-        script(`type` := "text/javascript", src := "/client-fastopt.js"),
-        link(
-          rel := "stylesheet",
-          `type` := "text/css",
-          href := "css/bootstrap.min.css")),
-      body(margin := 0)(script("example.ScalaJSCode().main()")))
-}
-
-object Controller extends Api {
-  override def list(path: String): Seq[String] = {
-    val chunks = path.split("/", -1)
-    val prefix = "./" + chunks.dropRight(1).mkString("/")
-    val files = Option(new java.io.File(prefix).list()).toSeq.flatten
-    files.filter(_.startsWith(chunks.last))
-  }
-}
-
-object AutowireServer extends autowire.Server[Js.Value, Reader, Writer] {
-  def read[Result: Reader](p: Js.Value): Result = upickle.default.readJs[Result](p)
-
-  def write[Result: Writer](r: Result): Js.Value = upickle.default.writeJs(r)
+  val page: String = "<!DOCTYPE html>" + html(
+    head(
+      title("Karazin Scala Users' Group"),
+      meta(httpEquiv := "Content-Type", content := "text/html; charset=UTF-8"),
+      script(`type` := "text/javascript", src := "/client-fastopt.js"),
+      link(rel := "stylesheet", `type` := "text/css", href := "css/bootstrap.min.css")),
+    body(margin := 0)(script("example.ScalaJSCode().main()")))
 }
 
 object Server extends StreamApp[Task] with Http4sDsl[Task] {
   val service: HttpService[Task] = HttpService[Task] {
     case GET -> Root                                       =>
-      Response[Task](Ok).withBody(Template.txt).withType(MediaType.`text/html`)
+      Response[Task](Ok).withBody(Template.page).withType(MediaType.`text/html`)
+    case request@GET -> Root / "css" / "bootstrap.min.css" =>
+      StaticFile
+        .fromResource(
+          "/META-INF/resources/webjars/bootstrap/4.0.0-1/css/bootstrap.min.css",
+          Some(request))
+        .getOrElse(Response[Task](NotFound))
     case request@GET -> Root / "client-fastopt.js"         =>
       StaticFile
         .fromFile(
           new File("/Users/crimson/IdeaProjects/scalajs/root/js/target/scala-2.12/client-fastopt.js"),
-          Some(request))
-        .getOrElse(Response[Task](NotFound))
-    case request@GET -> Root / "css" / "bootstrap.min.css" =>
-      scribe.info("Got request")
-      StaticFile
-        .fromResource(
-          "/META-INF/resources/webjars/bootstrap/4.0.0-1/css/bootstrap.min.css",
           Some(request))
         .getOrElse(Response[Task](NotFound))
     case request@POST -> path                              =>

@@ -1,4 +1,4 @@
-name := "scalajs"
+name := "ksug-scalajs-example"
 version := "0.0.1"
 
 val http4sVersion = "0.18.1"

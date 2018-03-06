@@ -1,5 +1,5 @@
 package example
 
 trait Api {
-  def list(path: String): Seq[String]
+  def list(path: String): String
 }
